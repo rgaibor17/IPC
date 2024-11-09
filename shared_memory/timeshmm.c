@@ -11,7 +11,6 @@
 
 #define MAXLINE 1024
 #define MAX_ARGS 99
-
 #define SIZE sizeof(struct timeval)
 
 int main(int argc, char **argv)
@@ -23,8 +22,8 @@ int main(int argc, char **argv)
     pid_t pid;
 
     char buf[MAXLINE] = {0};
-    int n, status;
-    
+    int status;
+
     shm_fd = shm_open(name, O_CREAT | O_RDWR, 0666);
     if (shm_fd == -1)
     {
@@ -37,7 +36,7 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-    shared_time = mmap(0, SIZE, PROT_READ, MAP_SHARED, shm_fd, 0);
+    shared_time = mmap(0, SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
     if (shared_time == MAP_FAILED) {
         perror("mmap");
         exit(1);
@@ -52,44 +51,39 @@ int main(int argc, char **argv)
 
     if (pid == 0)
     {
-        struct timeval *start_time, time;
-        const char* name = "time_shmm";
-        int shm_fd;
-        
-        shm_fd = shm_open(name, O_RDONLY, 0666);
-        start_time = mmap(0, SIZE, PROT_READ, MAP_SHARED, shm_fd, 0);
-        gettimeofday(&time, NULL);
-        *start_time = time;
-        shm_unlink(name);
+        // Child process: record start time in shared memory
+        struct timeval start_time;
+        gettimeofday(&start_time, NULL);
+        *shared_time = start_time;
 
         // Hijo ejecuta el comando
-        if(execvp(argv[0], argv) < 0)
+        if (execvp(argv[1], &argv[1]) < 0)
         {
             printf(" %s: Comando no encontrado.\n", argv[0]);
             exit(1);
         }
     }
 
+    // Parent process: wait for child process to finish
     wait(&status);
     if (WIFEXITED(status)) {
-        printf("Hijo %d termino con estado de salida: %d\n", pid, WEXITSTATUS(status));
+        printf("\nHijo %d termino con estado de salida: %d\n", pid, WEXITSTATUS(status));
     }
 
     struct timeval end_time;
     gettimeofday(&end_time, NULL);
-                struct tm *tm_info;
-            tm_info = localtime(&shared_time->tv_sec);
-            char buffer[30];
-            strftime(buffer, 30, "%Y-%m-%d %H:%M:%S", tm_info);
-            printf("Current time: %s.%06ld\n", buffer, shared_time->tv_usec);
-
 
     // Tiempo transcurrido
     long int seconds = end_time.tv_sec - shared_time->tv_sec;
     long int microseconds = end_time.tv_usec - shared_time->tv_usec;
+    if (microseconds < 0) {
+        // Correct microseconds if there's a negative overflow
+        microseconds += 1000000;
+        seconds -= 1;
+    }
     double elapsed = seconds + microseconds * 1e-6;
     
-    printf("Tiempo total de ejecución: %.6f seconds\n", elapsed);
+    printf("\nTiempo total de ejecución: %.6f seconds\n", elapsed);
 
     // Cleanup
     munmap(shared_time, SIZE);
