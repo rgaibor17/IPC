@@ -1,5 +1,4 @@
 #include <stdio.h> 
-#include <string.h>
 #include <stdlib.h> 
 #include <fcntl.h> 
 #include <sys/mman.h>
@@ -67,7 +66,7 @@ int main(int argc, char **argv)
     // Parent process: wait for child process to finish
     wait(&status);
     if (WIFEXITED(status)) {
-        printf("\nHijo %d termino con estado de salida: %d\n", pid, WEXITSTATUS(status));
+        printf("\nHijo %d terminó con estado de salida: %d\n", pid, WEXITSTATUS(status));
     }
 
     struct timeval end_time;
